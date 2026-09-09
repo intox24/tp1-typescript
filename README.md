@@ -1,75 +1,221 @@
-# TP1 — Du JavaScript au TypeScript strict
+# TP2 — Un mini design system typé
 
-**Séance 1 · en binôme · rendu sur dépôt Git**
+**Séance 2 · en binôme · rendu sur dépôt Git**
 
 ## Objectif
 
-Reprendre un module JavaScript existant, le migrer en TypeScript strict, et l'intégrer dans un projet Vite + React fraîchement créé.
+Reprendre le projet du TP1 et le transformer en une véritable interface : trois composants réutilisables et typés, une liste de films affichée en grille responsive, le tout mis en forme avec Tailwind CSS.
+
+## L'écran à obtenir
+
+![Aperçu du résultat attendu](apercu.png)
+
+Quatre composants seulement, réutilisés partout : une **Carte** par film, des **Badges** pour le statut et les genres, un **Bouton** dans le pied de chaque carte, le tout assemblé par **ListeFilms**. La zone grise en bas est ce que `ListeFilms` affiche quand la liste est vide.
+
+Les couleurs et les espacements exacts sont libres — c'est la structure qui compte.
+
+## Point de départ
+
+Votre projet du TP1, avec `src/lib/utils.ts` : l'interface `Film`, le type `StatutFilm`, les fonctions `trierPar`, `filtrerParGenre` et la constante `FILMS`.
 
 ## Ce qui vous est fourni
 
-- `utils.js` — un catalogue de films qui fonctionne parfaitement en JavaScript. C'est votre point de départ.
+- `utils.ts` — une version **simplifiée** du module du TP1, réduite à ce dont le TP2 a besoin.
+
+> **Vous avez terminé le TP1 ?** Gardez votre fichier : il fait déjà tout cela, et davantage.
+>
+> **Vous n'avez pas terminé ?** Placez ce `utils.ts` dans `src/lib/` et démarrez avec. Ce n'est pas le corrigé du TP1 : il ne contient ni les types utilitaires, ni le contrôle d'exhaustivité, ni les fonctions que vous deviez écrire. Vous êtes débloqués pour aujourd'hui, mais le TP1 reste à finir.
 
 ## Consignes
 
-1. Créer un projet Vite avec le template `react-ts` et vérifier que `npm run dev` démarre.
+**1. Ajouter Tailwind CSS au projet**
 
-   ```bash
-   npm create vite@latest catalogue-films -- --template react-ts
-   cd catalogue-films && npm install && npm run dev
-   ```
+```bash
+npm install tailwindcss @tailwindcss/vite
+```
 
-2. Copier `utils.js` dans `src/lib/` et le renommer en `utils.ts`.
-3. Corriger les erreurs **une par une** jusqu'à ce que `npx tsc --noEmit` ne renvoie plus rien.
-4. Déclarer une interface `Film` décrivant les champs `id`, `titre`, `annee`, `genres` et `note`.
-5. Écrire une fonction générique `trierPar<T>(liste: T[], cle: keyof T): T[]`.
-6. Ajouter un type union `StatutFilm` et une fonction utilisant le narrowing.
-7. Afficher trois films typés dans `App.tsx` (mise en forme libre).
-8. Produire un build avec `npm run build` et vérifier le contenu de `dist/`.
+Ajouter le plugin dans `vite.config.ts`, puis remplacer le contenu de `src/index.css` par `@import "tailwindcss";`. Vérifier qu'une classe s'applique avant d'aller plus loin — par exemple `className="text-red-500"` sur un titre.
 
-## Comment procéder
+**2. `src/composants/Bouton.tsx`**
 
-Les erreurs arrivent **en deux vagues**. C'est normal, et c'est le cœur de l'exercice.
+Le contrat à respecter :
 
-**Première vague — 26 erreurs.** Presque toutes du même type : `TS7006: Parameter implicitly has an 'any' type`. Le mode strict refuse les paramètres non annotés. Commencez par là.
+```ts
+export type VarianteBouton = "primaire" | "secondaire" | "danger";
 
-**Deuxième vague.** Dès que les paramètres sont typés, le compilateur voit enfin ce que fait votre code, et de nouvelles erreurs apparaissent — plus intéressantes :
+export interface BoutonProps {
+  libelle: string;
+  variante?: VarianteBouton;   // "primaire" par défaut
+  desactive?: boolean;         // false par défaut
+  onClick?: () => void;
+}
+```
 
-| Code | Ce que ça veut dire | Où ça se joue |
+Il doit afficher un `<button>` contenant `libelle`, désactivé quand `desactive` vaut `true`, et dont les classes Tailwind changent selon la variante.
+
+Les classes de chaque variante sont rangées dans un objet `Record<VarianteBouton, string>` — pas dans une suite de `if`. Le choix des couleurs est libre, tant que les trois variantes se distinguent et que le focus reste visible au clavier.
+
+```tsx
+<Bouton libelle="Valider" />
+<Bouton libelle="Supprimer" variante="danger" onClick={supprimer} />
+<Bouton libelle="Indisponible" desactive />
+```
+
+
+Anatomie :
+
+```
+┌──────────────────────────┐
+│      libelle             │  ← le texte reçu en prop
+└──────────────────────────┘
+   ↑ fond, texte et survol donnés par « variante »
+     opacité réduite et curseur barré si « desactive »
+```
+
+**3. `src/composants/Carte.tsx`**
+
+```ts
+export interface CarteProps {
+  titre: string;
+  sousTitre?: string;
+  children: ReactNode;
+  actions?: ReactNode;   // pied de carte, optionnel
+}
+```
+
+Il doit afficher un bloc sur fond blanc, avec coins arrondis et ombre légère, contenant dans l'ordre :
+
+1. le `titre`, en gras ;
+2. le `sousTitre` en dessous, plus petit et plus clair — **uniquement s'il est fourni** ;
+3. le contenu `children`, quel qu'il soit ;
+4. `actions` en pied de carte — **uniquement si fourni**.
+
+La carte ne décide jamais de son contenu : elle l'accueille.
+
+```tsx
+<Carte titre="Alien" sousTitre="1979 — 8.5/10" actions={<Bouton libelle="Détails" />}>
+  <p>Un équipage découvre un signal…</p>
+</Carte>
+```
+
+
+Anatomie :
+
+```
+┌───────────────────────────────────┐
+│ titre                             │  ← gras
+│ sousTitre                         │  ← plus petit et plus clair, si fourni
+│                                   │
+│ children                          │  ← contenu libre, décidé par l'appelant
+│                                   │
+│ actions                           │  ← pied de carte, si fourni
+└───────────────────────────────────┘
+   fond blanc · coins arrondis · ombre légère
+```
+
+**4. `src/composants/Badge.tsx`**
+
+```ts
+export type TonBadge = "neutre" | "succes" | "info" | "attention";
+
+export interface BadgeProps {
+  texte: string;
+  ton?: TonBadge;   // "neutre" par défaut
+}
+```
+
+Il doit afficher un petit `<span>` arrondi, en texte réduit, avec une couleur de fond par ton. Même principe que le bouton : un objet indexé par l'union.
+
+```tsx
+<Badge texte="SF" />
+<Badge texte="Déjà vu" ton="succes" />
+```
+
+
+Anatomie :
+
+```
+╭───────────╮
+│  texte    │   ← petite pastille arrondie
+╰───────────╯
+   couleur de fond donnée par « ton »
+```
+
+**5. `src/composants/ListeFilms.tsx`**
+
+```ts
+export interface ListeFilmsProps {
+  films: Film[];
+  messageVide?: string;
+  onSelection?: (film: Film) => void;
+}
+```
+
+C'est le composant qui assemble les trois autres. Il doit afficher une `<ul>` en grille, avec une `<li>` par film portant sa `key`, et dans chaque `<li>` une `Carte` où :
+
+- le titre de la carte est le titre du film ;
+- le sous-titre est l'année et la note, par exemple `1979 — 8.5/10` ;
+- le contenu est un `Badge` pour le statut, suivi d'un `Badge` par genre ;
+- si `onSelection` est fourni, un `Bouton` « Détails » est placé dans `actions`.
+
+Pour le badge de statut, utilisez cette correspondance — elle vous évitera d'inventer :
+
+| statut | libellé affiché | ton |
 |---|---|---|
-| `TS2532` | Object is possibly 'undefined' | bloc 3 — `find()` peut ne rien trouver |
-| `TS7053` | Can't be used to index type 'Film' | bloc 4 — c'est `keyof T` qui manque |
-| `TS2345` | 'undefined' is not assignable | bloc 5 — le paramètre optionnel n'est pas vérifié |
-| `TS2322` | Type 'string' is not assignable to 'number' | bloc 2 — la fonction renvoie deux types |
+| `vu` | Déjà vu | `succes` |
+| `a_voir` | À voir | `info` |
+| `abandonne` | Abandonné | `neutre` |
 
-Ne cherchez pas à tout corriger d'un coup. Relancez `npx tsc --noEmit` après chaque bloc : voir le compteur d'erreurs descendre est la meilleure façon d'avancer.
+Rangez-la, elle aussi, dans un objet indexé par `StatutFilm`.
 
-## Les dix blocs du fichier
 
-Chaque bloc numéroté dans `utils.js` cache un problème différent :
+Anatomie :
 
-1. Paramètres non typés
-2. Un retour de type variable → type union + narrowing chez l'appelant
-3. Une recherche qui peut échouer → `Film | undefined` et garde explicite
-4. Un tri générique → `<T>` et `keyof T`
-5. Un paramètre optionnel jamais vérifié
-6. Un statut libre → union littérale `StatutFilm`
-7. Une valeur venue de l'extérieur → `localStorage.getItem` renvoie `string | null`
-8. Une mise à jour partielle → `Partial<Omit<Film, "id">>`
-9. Une création sans identifiant → `Omit<Film, "id">`
-10. Une mutation silencieuse → `readonly` et retour d'un nouvel objet
+```
+ListeFilms
+│
+├─ films vide ?  →  message unique, et on s'arrête là
+│
+└─ sinon : <ul> en grille
+     └─ <li key={film.id}>
+          └─ Carte  titre = film.titre
+                    sousTitre = "1979 — 8.5/10"
+                    children  = Badge(statut) + un Badge par genre
+                    actions   = Bouton « Détails »  (si onSelection)
+```
+
+**6. Traiter le cas de la liste vide**
+
+Si le tableau reçu est vide, afficher un message dédié plutôt qu'une grille vide. Traitez ce cas **en premier**, par un retour anticipé.
+
+**7. Assembler dans `App.tsx`**
+
+Réutilisez `trierPar` et `filtrerParGenre` du TP1 pour afficher plusieurs sections : tous les films triés par titre, puis un genre en particulier. Prévoyez une section dont le filtre ne renvoie rien, pour démontrer le cas vide.
+
+**8. Grille responsive**
+
+1 colonne sur mobile, 2 à partir de `md`, 4 à partir de `lg`. Aucune feuille de style personnalisée : tout passe par des classes Tailwind.
+
+## Ce que vous ne devez pas encore utiliser
+
+Pas de `useState`, pas de `useEffect` : ils arrivent en séance 3 et 4. Cette interface est entièrement statique, et c'est volontaire — tout ce qui s'affiche découle des données et des props.
+
+## Points de vigilance
+
+- **`variante = "primaire"` en valeur par défaut**, plutôt que `variante?: string`. L'éditeur proposera alors les trois valeurs possibles, et refusera les fautes de frappe.
+- **`Record<VarianteBouton, string>`** pour la table des styles : si vous ajoutez une variante à l'union sans l'ajouter à la table, le compilateur vous le dit.
+- **`{films.length === 0 ? … }`** ou un retour anticipé, jamais `{films.length && …}` : avec un tableau vide, le `0` s'afficherait à l'écran.
+- **`import type { ReactNode } from "react"`** : le mot-clé `type` indique qu'on n'importe qu'un type, effacé au build.
+- **Les classes Tailwind sont mobile-first** : le style sans préfixe s'applique partout, `md:` et `lg:` ajoutent les adaptations pour les écrans plus larges.
 
 ## Critères de réussite
 
-- [ ] `npx tsc --noEmit` ne renvoie aucune erreur
-- [ ] `strict` est resté à `true` dans `tsconfig.json`
-- [ ] Aucun `any` dans le code rendu — ni implicite, ni explicite
-- [ ] Au moins un type utilitaire est utilisé (`Partial`, `Pick` ou `Omit`)
-- [ ] La fonction générique est contrainte, et non typée en `any`
-- [ ] Le build se termine sans erreur
-
-## Pour aller plus loin
-
-- Ajouter un `default: { const jamais: never = film.statut; }` dans `libelleStatut` : le compilateur vous préviendra si un statut est ajouté sans être traité.
-- Marquer `id` en `readonly` et constater ce que ça interdit.
-- Remplacer `JSON.parse(brut) as number[]` par une vraie validation. Question ouverte : pourquoi le `as` n'est-il pas une garantie ?
+- [ ] Chaque composant exporte son interface de props
+- [ ] `npx tsc --noEmit` ne renvoie aucune erreur, et il n'y a aucun `any`
+- [ ] `Carte` accepte du contenu libre via `children`
+- [ ] La variante du bouton est une union littérale, pas une chaîne libre
+- [ ] Les `key` sont des identifiants stables, pas des index
+- [ ] Le cas de la liste vide est traité avec un message dédié
+- [ ] La grille s'adapte réellement à trois largeurs d'écran
+- [ ] Les états `hover` et `focus` sont visibles, y compris au clavier
+- [ ] Aucune feuille CSS personnalisée
